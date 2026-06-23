@@ -30,12 +30,16 @@ const catGroup = {
 const nombresMeses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 async function sendWhatsApp(to, message) {
-  const twilio = require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
-  await twilio.messages.create({
-    from: 'whatsapp:+14155238886',
-    to: to,
-    body: message
-  });
+  try {
+    const twilio = require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+    await twilio.messages.create({
+      from: 'whatsapp:+14155238886',
+      to: to,
+      body: message
+    });
+  } catch(err) {
+    console.log('WhatsApp send error (non-fatal):', err.message);
+  }
 }
 
 async function analyzeImageWithClaude(imageUrl) {
