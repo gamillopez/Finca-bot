@@ -49,8 +49,7 @@ function calcularTotales(csvText) {
   const lines = csvText.split('\n');
   const grupos = {};
   let total = 0;
-  let currentGrupo = '';
- 
+
   const grupoKeys = {
     'Gastos de Establecimiento': 'Gastos de Establecimiento',
     'Gastos Operativos': 'Gastos Operativos',
@@ -59,22 +58,30 @@ function calcularTotales(csvText) {
     'Servicios y Gastos Administrativos': 'Servicios Admin',
     'Gastos de Cerfificacion': 'Certificación',
   };
- 
+
   for (const line of lines) {
     const cols = line.split(',').map(c => c.replace(/^"|"$/g, '').trim());
-    const firstCol = cols[0];
-    const montoCol = cols[4] || '';
-    
-    if (grupoKeys[firstCol]) {
-      currentGrupo = grupoKeys[firstCol];
-      continue;
-    }
-    
-    if (firstCol === '' && montoCol && !montoCol.includes('Total')) {
-      const monto = parseFloat(montoCol.replace(/[$,]/g, '')) || 0;
-      if (monto > 0 && currentGrupo) {
-        grupos[currentGrupo] = (grupos[currentGrupo] || 0) + monto;
-        total += monto;
+    const col0 = cols[0] || '';
+    const col3 = cols[3] || '';
+    const col4 = cols[4] || '';
+
+    if (grupoKeys[col0]) continue;
+
+    // Leer solo filas de Total por subcategoria
+    if (col3 === 'Total' && col4) {
+      const monto = parseFloat(col4.replace(/[$,]/g, '')) || 0;
+      if (monto > 0) {
+        // Encontrar a qué grupo pertenece buscando hacia arriba
+        for (let i = lines.indexOf(line) - 1; i >= 0; i--) {
+          const prevCols = lines[i].split(',').map(c => c.replace(/^"|"$/g, '').trim());
+          const prevCol0 = prevCols[0] || '';
+          if (grupoKeys[prevCol0]) {
+            const grupo = grupoKeys[prevCol0];
+            grupos[grupo] = (grupos[grupo] || 0) + monto;
+            total += monto;
+            break;
+          }
+        }
       }
     }
   }
