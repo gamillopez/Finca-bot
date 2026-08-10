@@ -45,11 +45,34 @@ async function getSheetData() {
   return resp.data;
 }
  
+// Parser de una línea CSV que respeta comillas (comas dentro de "..." no cuentan como separador de columna)
+function parseCsvLine(line) {
+  const result = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; } // comilla escapada ""
+      else { inQuotes = !inQuotes; }
+    } else if (ch === ',' && !inQuotes) {
+      result.push(cur.trim());
+      cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  result.push(cur.trim());
+  return result;
+}
+ 
 function calcularTotales(csvText) {
-  const lines = csvText.split('\n');
+  // \r?\n para manejar los CRLF que exporta Google Sheets, y descarta líneas vacías
+  const lines = csvText.split(/\r?\n/).filter(l => l.trim() !== '');
   const grupos = {};
   let total = 0;
-
+  let grupoActual = null;
+ 
   const grupoKeys = {
     'Gastos de Establecimiento': 'Gastos de Establecimiento',
     'Gastos Operativos': 'Gastos Operativos',
@@ -58,33 +81,29 @@ function calcularTotales(csvText) {
     'Servicios y Gastos Administrativos': 'Servicios Admin',
     'Gastos de Cerfificacion': 'Certificación',
   };
-
-  for (const line of lines) {
-    const cols = line.split(',').map(c => c.replace(/^"|"$/g, '').trim());
+ 
+  for (const rawLine of lines) {
+    const cols = parseCsvLine(rawLine);
     const col0 = cols[0] || '';
     const col3 = cols[3] || '';
     const col4 = cols[4] || '';
-
-    if (grupoKeys[col0]) continue;
-
-    // Leer solo filas de Total por subcategoria
-    if (col3 === 'Total' && col4) {
-      const monto = parseFloat(col4.replace(/[$,]/g, '')) || 0;
+ 
+    // Fila de categoría principal: recordamos el grupo activo y seguimos
+    if (grupoKeys[col0]) {
+      grupoActual = grupoKeys[col0];
+      continue;
+    }
+ 
+    // Fila de subtotal ("Total" en la columna Comentario)
+    if (col3 === 'Total' && col4 && grupoActual) {
+      const monto = parseFloat(col4.replace(/[^0-9.-]/g, '')) || 0;
       if (monto > 0) {
-        // Encontrar a qué grupo pertenece buscando hacia arriba
-        for (let i = lines.indexOf(line) - 1; i >= 0; i--) {
-          const prevCols = lines[i].split(',').map(c => c.replace(/^"|"$/g, '').trim());
-          const prevCol0 = prevCols[0] || '';
-          if (grupoKeys[prevCol0]) {
-            const grupo = grupoKeys[prevCol0];
-            grupos[grupo] = (grupos[grupo] || 0) + monto;
-            total += monto;
-            break;
-          }
-        }
+        grupos[grupoActual] = (grupos[grupoActual] || 0) + monto;
+        total += monto;
       }
     }
   }
+ 
   return { grupos, total };
 }
  
